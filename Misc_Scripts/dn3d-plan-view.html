@@ -1,0 +1,386 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>DN3D Plan View — Fixed</title>
+<style>
+  html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Arial;}
+  #ui { position: absolute; left:8px; top:8px; z-index:20; background:rgba(255,255,255,0.93); padding:10px; border-radius:8px; box-shadow:0 4px 14px rgba(0,0,0,0.18); }
+  #canvas { width:100vw; height:100vh; display:block; background:#071029; cursor:grab; }
+  #canvas:active{ cursor:grabbing; }
+  .stat { font-size:13px; color:#111; margin-top:6px; }
+  #warnings { margin-top:8px; max-width:420px; color:#7f1d1d; font-size:12px; white-space:pre-wrap; }
+  label{margin-left:8px; font-size:13px;}
+  button,input{margin-right:8px;}
+</style>
+</head>
+<body>
+  <div id="ui">
+    <input id="file" type="file" accept=".map" />
+    <button id="fit">Fit</button>
+    <label><input id="showSprites" type="checkbox"> Show sprites</label>
+    <div class="stat" id="info">Load a BUILD v7 .map file</div>
+    <div id="warnings"></div>
+  </div>
+  <canvas id="canvas"></canvas>
+
+<script>
+/* Robust DN3D plan-view viewer — explicit mapping from map coords -> screen coords.
+   - Parses BUILD v7 .map files (signed/unsigned correct)
+   - Draws wall segments (wall.x,y -> walls[wall.point2].x,y)
+   - Fit/zoom/pan works reliably even for large integer coordinates
+*/
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d', { alpha: false });
+const fileInput = document.getElementById('file');
+const info = document.getElementById('info');
+const warnEl = document.getElementById('warnings');
+const fitBtn = document.getElementById('fit');
+const showSpritesCheckbox = document.getElementById('showSprites');
+
+let parsed = null;
+let bbox = null;         // {minx,miny,maxx,maxy}
+let view = { scale:1, tx:0, ty:0 }; // tx/ty are in screen pixels (pan)
+let isDragging = false, dragStart = null;
+
+function resizeCanvas(){
+  canvas.width = Math.floor(window.innerWidth * devicePixelRatio);
+  canvas.height = Math.floor(window.innerHeight * devicePixelRatio);
+  canvas.style.width = window.innerWidth + 'px';
+  canvas.style.height = window.innerHeight + 'px';
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  draw();
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// ------- File parsing & UI -------
+fileInput.addEventListener('change', async () => {
+  if (!fileInput.files || fileInput.files.length === 0) return;
+  const f = fileInput.files[0];
+  const ab = await f.arrayBuffer();
+  try {
+    parsed = parseMapV7(ab);
+    info.textContent = `mapversion=${parsed.header.mapversion}  sectors=${parsed.sectors.length}  walls=${parsed.walls.length}  sprites=${parsed.sprites.length}`;
+    showWarnings(parsed.warnings);
+    computeBBox();
+    fit();
+    draw();
+  } catch (e) {
+    parsed = null;
+    info.textContent = 'Parse failed: ' + (e && e.message ? e.message : String(e));
+    warnEl.textContent = '';
+    draw();
+  }
+});
+
+fitBtn.addEventListener('click', () => { if (!parsed) return; fit(); draw(); });
+showSpritesCheckbox.addEventListener('change', draw);
+
+// drag-pan
+canvas.addEventListener('mousedown', (ev) => {
+  isDragging = true;
+  dragStart = { x: ev.clientX, y: ev.clientY, tx: view.tx, ty: view.ty };
+});
+window.addEventListener('mouseup', ()=> { isDragging = false; dragStart = null; });
+window.addEventListener('mousemove', (ev) => {
+  if (!isDragging || !dragStart) return;
+  view.tx = dragStart.tx + (ev.clientX - dragStart.x);
+  view.ty = dragStart.ty + (ev.clientY - dragStart.y);
+  draw();
+});
+
+// wheel zoom (mouse-centered)
+canvas.addEventListener('wheel', (ev) => {
+  if (!parsed) return;
+  ev.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+  const zoomFactor = Math.exp(-Math.sign(ev.deltaY) * 0.12);
+  const oldScale = view.scale;
+  const newScale = Math.max(0.0001, Math.min(2000, oldScale * zoomFactor));
+  // compute map point under mouse, keep it under mouse after zoom
+  const mapPt = screenToMap(mx, my);
+  view.scale = newScale;
+  const newScreen = mapToScreen(mapPt.x, mapPt.y);
+  // adjust pan so that newScreen equals mouse coords
+  view.tx += mx - newScreen.x;
+  view.ty += my - newScreen.y;
+  draw();
+}, { passive:false });
+
+// ------- drawing helpers -------
+
+function draw(){
+  // clear
+  ctx.fillStyle = '#071029';
+  ctx.fillRect(0,0,canvas.width / devicePixelRatio, canvas.height / devicePixelRatio);
+
+  if (!parsed) {
+    ctx.fillStyle = '#d1e3ff';
+    ctx.font = '14px system-ui, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('No map loaded — open a BUILD v7 .map file', canvas.width/(2*devicePixelRatio), canvas.height/(2*devicePixelRatio));
+    return;
+  }
+
+  if (!bbox || parsed.walls.length === 0) {
+    ctx.fillStyle = '#ffdede';
+    ctx.font = '13px system-ui, Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('Map parsed but contains 0 walls or bbox not computed.', 20, 30);
+    return;
+  }
+
+  // draw axes/grid lightly (optional)
+  drawGrid();
+
+  // draw walls (green)
+  ctx.strokeStyle = '#7efc8b';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i=0;i<parsed.walls.length;i++){
+    const w = parsed.walls[i];
+    const p2i = w.point2;
+    if (p2i < 0 || p2i >= parsed.walls.length) continue;
+    const w2 = parsed.walls[p2i];
+    const s1 = mapToScreen(w.x, w.y);
+    const s2 = mapToScreen(w2.x, w2.y);
+    ctx.moveTo(s1.x, s1.y);
+    ctx.lineTo(s2.x, s2.y);
+  }
+  ctx.stroke();
+
+  // endpoints as small dots
+  ctx.fillStyle = '#60a5fa';
+  for (let i=0;i<parsed.walls.length;i++){
+    const w = parsed.walls[i];
+    const s = mapToScreen(w.x, w.y);
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, Math.max(1.2, 3 / view.scale), 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // optional: sprites drawn as red squares
+  if (showSpritesCheckbox.checked){
+    ctx.fillStyle = '#ff6b6b';
+    for (let sp of parsed.sprites){
+      const s = mapToScreen(sp.x, sp.y);
+      const size = Math.max(6, 12 / view.scale);
+      ctx.fillRect(s.x - size/2, s.y - size/2, size, size);
+    }
+  }
+
+  // HUD: info
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(8, canvas.height/(devicePixelRatio) - 34, 240, 28);
+  ctx.fillStyle = '#fff';
+  ctx.font = '12px system-ui, Arial';
+  ctx.textAlign = 'left';
+  ctx.fillText(`sectors=${parsed.sectors.length} walls=${parsed.walls.length} sprites=${parsed.sprites.length}`, 12, canvas.height/(devicePixelRatio) - 14);
+}
+
+// small grid that adapts to scale for orientation
+function drawGrid(){
+  const stepMap = chooseGridStep();
+  ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  // vertical lines
+  const minX = bbox.minx, maxX = bbox.maxx, minY=bbox.miny, maxY=bbox.maxy;
+  const startX = Math.floor(minX / stepMap) * stepMap;
+  const endX = Math.ceil(maxX / stepMap) * stepMap;
+  for (let x = startX; x <= endX; x += stepMap){
+    const a = mapToScreen(x, minY);
+    const b = mapToScreen(x, maxY);
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+  }
+  // horizontal lines
+  const startY = Math.floor(minY / stepMap) * stepMap;
+  const endY = Math.ceil(maxY / stepMap) * stepMap;
+  for (let y = startY; y <= endY; y += stepMap){
+    const a = mapToScreen(minX, y);
+    const b = mapToScreen(maxX, y);
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+  }
+  ctx.stroke();
+}
+
+// choose a grid step in map units based on view.scale so grid spacing looks reasonable
+function chooseGridStep(){
+  // desired ~80-160px per grid
+  const desiredPx = 120;
+  const approxMapUnitPerPixel = 1 / view.scale;
+  const approxStep = desiredPx * approxMapUnitPerPixel;
+  // choose from powers: 1,2,4,8,16,32,64,128,256,512,1024...
+  const powers = [1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192];
+  let best = powers[0];
+  let bestDiff = Infinity;
+  for (let p of powers){
+    const diff = Math.abs(p - approxStep);
+    if (diff < bestDiff){ best = p; bestDiff = diff; }
+  }
+  return best;
+}
+
+// convert map coords (BUILD) -> screen pixel coords (canvas CSS pixels)
+function mapToScreen(mx, my){
+  // we invert y so +Y is up on screen (user-friendly)
+  const sx = ( (mx - (bbox.minx + bbox.maxx)/2) * view.scale ) + (canvas.width / devicePixelRatio)/2 + view.tx;
+  const sy = ( (-(my - (bbox.miny + bbox.maxy)/2) * view.scale ) + (canvas.height / devicePixelRatio)/2 + view.ty );
+  return { x: sx, y: sy };
+}
+// reverse: screen->map (used for zoom center)
+function screenToMap(sx, sy){
+  const cx = (canvas.width / devicePixelRatio)/2 - view.tx;
+  const cy = (canvas.height / devicePixelRatio)/2 - view.ty;
+  const mx = ((sx - cx) / view.scale) + (bbox.minx + bbox.maxx)/2;
+  const my = -(((sy - cy) / view.scale) - (bbox.miny + bbox.maxy)/2);
+  return { x: mx, y: my };
+}
+
+// fit: compute view.scale & pan so entire bbox fits interior with padding
+function fit(){
+  if (!bbox) return;
+  const pad = 40;
+  const canvasW = canvas.width / devicePixelRatio;
+  const canvasH = canvas.height / devicePixelRatio;
+  const mapW = Math.max(1, bbox.maxx - bbox.minx);
+  const mapH = Math.max(1, bbox.maxy - bbox.miny);
+  const scaleX = (canvasW - pad*2) / mapW;
+  const scaleY = (canvasH - pad*2) / mapH;
+  view.scale = Math.min(scaleX, scaleY);
+  if (!isFinite(view.scale) || view.scale <= 0) view.scale = 1;
+  view.tx = 0; view.ty = 0;
+}
+
+// compute bbox from wall endpoints (safe with missing point2)
+function computeBBox(){
+  if (!parsed || parsed.walls.length === 0){ bbox = null; return; }
+  let minx=Infinity, miny=Infinity, maxx=-Infinity, maxy=-Infinity;
+  for (let i=0;i<parsed.walls.length;i++){
+    const w = parsed.walls[i];
+    minx = Math.min(minx, w.x); miny = Math.min(miny, w.y);
+    maxx = Math.max(maxx, w.x); maxy = Math.max(maxy, w.y);
+    const p2 = (w.point2 >=0 && w.point2 < parsed.walls.length) ? parsed.walls[w.point2] : null;
+    if (p2){
+      minx = Math.min(minx, p2.x); miny = Math.min(miny, p2.y);
+      maxx = Math.max(maxx, p2.x); maxy = Math.max(maxy, p2.y);
+    }
+  }
+  // fall back if degenerate
+  if (!isFinite(minx) || !isFinite(miny) || !isFinite(maxx) || !isFinite(maxy)) {
+    bbox = null;
+  } else {
+    bbox = { minx, miny, maxx, maxy };
+  }
+}
+
+// show parse warnings in UI
+function showWarnings(warnings){
+  if (!warnings || warnings.length === 0){ warnEl.textContent = ''; return; }
+  const lines = warnings.map(w => `${w.code}: ${w.message}${w.detail ? ' // ' + JSON.stringify(w.detail) : ''}`);
+  warnEl.textContent = lines.join('\n');
+}
+
+// ------------------ BUILD v7 parser (JS) ------------------
+function parseMapV7(buf){
+  const dv = new DataView(buf);
+  let pos = 0;
+  const rem = () => dv.byteLength - pos;
+  const rI8 = ()=>{ const v=dv.getInt8(pos); pos+=1; return v; };
+  const rU8 = ()=>{ const v=dv.getUint8(pos); pos+=1; return v; };
+  const rI16 = ()=>{ const v=dv.getInt16(pos, true); pos+=2; return v; };
+  const rU16 = ()=>{ const v=dv.getUint16(pos, true); pos+=2; return v; };
+  const rI32 = ()=>{ const v=dv.getInt32(pos, true); pos+=4; return v; };
+
+  if (rem() < 26) throw new Error('Buffer too small for v7 header (needs >= 26 bytes)');
+
+  const header = {
+    mapversion: rI32(),
+    posx: rI32(), posy: rI32(), posz: rI32(),
+    ang: rI16(), cursectnum: rI16(),
+    numsectors: rU16(), numwalls: rU16(), numsprites: rU16()
+  };
+
+  const warnings = [];
+  if (header.mapversion !== 7) warnings.push({ code:'MAPVERSION', message:`expected 7 got ${header.mapversion}` });
+
+  const SECTOR_SIZE = 40, WALL_SIZE = 32, SPRITE_SIZE = 44;
+  const expectedBytes = 26 + header.numsectors*SECTOR_SIZE + header.numwalls*WALL_SIZE + header.numsprites*SPRITE_SIZE;
+  if (dv.byteLength < expectedBytes) {
+    warnings.push({ code:'TRUNCATED', message:`file shorter than header suggests: expected ${expectedBytes} bytes, got ${dv.byteLength}. Will parse as much as possible.`});
+  }
+
+  const sectors = [];
+  for (let i=0;i<header.numsectors;i++){
+    if (rem() < SECTOR_SIZE){ warnings.push({ code:'SECTOR_TRUNC', message:`sector ${i} truncated`}); break; }
+    sectors.push({
+      wallptr: rI16(), wallnum: rI16(),
+      ceilingz: rI32(), floorz: rI32(),
+      ceilingstat: rU16(), floorstat: rU16(),
+      ceilingpicnum: rI16(), ceilingheinum: rI16(),
+      ceilingshade: rI8(), ceilingpal: rU8(), ceilingxpanning: rU8(), ceilingypanning: rU8(),
+      floorpicnum: rI16(), floorheinum: rI16(), floorshade: rI8(), floorpal: rU8(), floorxpanning: rU8(), floorypanning: rU8(),
+      visibility: rU8(), filler: rU8(), lotag: rU16(), hitag: rU16(), extra: rI16()
+    });
+  }
+
+  const walls = [];
+  for (let i=0;i<header.numwalls;i++){
+    if (rem() < WALL_SIZE){ warnings.push({ code:'WALL_TRUNC', message:`wall ${i} truncated`}); break; }
+    walls.push({
+      x: rI32(), y: rI32(),
+      point2: rI16(), nextwall: rI16(), nextsector: rI16(),
+      cstat: rU16(), picnum: rI16(), overpicnum: rI16(), shade: rI8(),
+      pal: rU8(), xrepeat: rU8(), yrepeat: rU8(), xpanning: rU8(), ypanning: rU8(),
+      lotag: rU16(), hitag: rU16(), extra: rI16()
+    });
+  }
+
+  const sprites = [];
+  for (let i=0;i<header.numsprites;i++){
+    if (rem() < SPRITE_SIZE){ warnings.push({ code:'SPRITE_TRUNC', message:`sprite ${i} truncated`}); break; }
+    sprites.push({
+      x: rI32(), y: rI32(), z: rI32(),
+      cstat: rU16(), picnum: rI16(), shade: rI8(),
+      pal: rU8(), clipdist: rU8(), filler: rU8(),
+      xrepeat: rU8(), yrepeat: rU8(), xoffset: rI8(), yoffset: rI8(),
+      sectnum: rI16(), statnum: rI16(), ang: rI16(), owner: rI16(), xvel: rI16(), yvel: rI16(), zvel: rI16(),
+      lotag: rU16(), hitag: rU16(), extra: rI16()
+    });
+  }
+
+  // basic sanity checks
+  for (let si=0; si<sectors.length; si++){
+    const s = sectors[si];
+    if (s.wallptr < 0 || s.wallptr + s.wallnum > walls.length){
+      warnings.push({ code:'SECTOR_WALL_RANGE', message:`sector ${si} references walls out of range`, detail:s });
+    }
+    if (s.wallnum <= 0) warnings.push({ code:'SECTOR_EMPTY', message:`sector ${si} has wallnum <= 0`, detail:s });
+  }
+  for (let wi=0; wi<walls.length; wi++){
+    const w = walls[wi];
+    if (w.point2 < 0 || w.point2 >= walls.length){
+      warnings.push({ code:'WALL_POINT2_RANGE', message:`wall ${wi} point2 out of range`, detail:w });
+    }
+    if (w.nextwall !== -1 && (w.nextwall < 0 || w.nextwall >= walls.length)){
+      warnings.push({ code:'WALL_NEXTWALL_RANGE', message:`wall ${wi} nextwall out of range`, detail:w });
+    }
+  }
+  for (let spi=0; spi<sprites.length; spi++){
+    const s = sprites[spi];
+    if (s.sectnum < 0 || s.sectnum >= sectors.length){
+      warnings.push({ code:'SPRITE_SECTNUM_RANGE', message:`sprite ${spi} sectnum out of range`, detail:s });
+    }
+  }
+
+  return { header, sectors, walls, sprites, warnings };
+}
+
+</script>
+</body>
+</html>

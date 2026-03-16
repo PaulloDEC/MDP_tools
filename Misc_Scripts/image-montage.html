@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Montage Creator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            color: #fff;
+        }
+
+        .controls {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .control-row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .control-row .control-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            background: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            color: #e0e0e0;
+            cursor: pointer;
+        }
+
+        input[type="file"]::file-selector-button {
+            background: #4a4a4a;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            color: #e0e0e0;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        input[type="file"]::file-selector-button:hover {
+            background: #5a5a5a;
+        }
+
+        input[type="number"],
+        input[type="color"],
+        select {
+            width: 100%;
+            padding: 8px;
+            background: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            color: #e0e0e0;
+        }
+
+        input[type="color"] {
+            height: 40px;
+            cursor: pointer;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #4a90e2;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #357abd;
+        }
+
+        button:disabled {
+            background: #3a3a3a;
+            cursor: not-allowed;
+        }
+
+        .workspace {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            overflow: auto;
+        }
+
+        #canvas-container {
+            display: inline-block;
+            position: relative;
+        }
+
+        #montage-canvas {
+            border: 2px solid #4a4a4a;
+            cursor: move;
+        }
+
+        .image-controls {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .image-control-item {
+            background: #3a3a3a;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        .image-control-item h3 {
+            margin-bottom: 10px;
+            color: #4a90e2;
+        }
+
+        .slider-group {
+            margin-bottom: 10px;
+        }
+
+        .slider-group label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: #4a4a4a;
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #4a90e2;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #4a90e2;
+            cursor: pointer;
+            border-radius: 50%;
+            border: none;
+        }
+
+        .export-controls {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .info-text {
+            color: #888;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Image Montage Creator</h1>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="image-upload">Select Images:</label>
+                <input type="file" id="image-upload" accept="image/*" multiple>
+                <div class="info-text">Select 2 or more images to create a montage</div>
+            </div>
+
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="bg-color">Background Color:</label>
+                    <input type="color" id="bg-color" value="#1a1a1a">
+                </div>
+
+                <div class="control-group">
+                    <label for="spacing">Spacing (px):</label>
+                    <input type="number" id="spacing" value="20" min="0" max="100">
+                </div>
+
+                <div class="control-group">
+                    <label for="canvas-width">Canvas Width (px):</label>
+                    <input type="number" id="canvas-width" value="1200" min="400" max="4000">
+                </div>
+            </div>
+
+            <div class="control-group">
+                <button id="generate-btn" disabled>Generate Montage</button>
+            </div>
+        </div>
+
+        <div class="workspace">
+            <div id="canvas-container">
+                <canvas id="montage-canvas"></canvas>
+            </div>
+        </div>
+
+        <div id="image-controls-section" class="image-controls" style="display: none;">
+            <h2>Image Controls</h2>
+            <div id="image-controls"></div>
+        </div>
+
+        <div class="export-controls">
+            <h2>Export</h2>
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="export-format">Format:</label>
+                    <select id="export-format">
+                        <option value="png">PNG</option>
+                        <option value="jpeg">JPEG</option>
+                    </select>
+                </div>
+
+                <div class="control-group" id="quality-group">
+                    <label for="jpeg-quality">JPEG Quality:</label>
+                    <input type="number" id="jpeg-quality" value="92" min="1" max="100">
+                </div>
+            </div>
+
+            <div class="control-group">
+                <button id="export-btn" disabled>Export Montage</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class ImageMontage {
+            constructor() {
+                this.images = [];
+                this.loadedImages = [];
+                this.imageTransforms = [];
+                this.canvas = document.getElementById('montage-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.backgroundColor = '#1a1a1a';
+                this.spacing = 20;
+                this.canvasWidth = 1200;
+                this.gridLayout = { cols: 0, rows: 0 };
+                this.frameSize = { width: 0, height: 0 };
+                this.selectedImage = null;
+                this.isDragging = false;
+                this.dragStart = { x: 0, y: 0 };
+
+                this.initEventListeners();
+            }
+
+            initEventListeners() {
+                document.getElementById('image-upload').addEventListener('change', (e) => this.handleImageUpload(e));
+                document.getElementById('generate-btn').addEventListener('click', () => this.generateMontage());
+                document.getElementById('export-btn').addEventListener('click', () => this.exportMontage());
+                document.getElementById('bg-color').addEventListener('input', (e) => {
+                    this.backgroundColor = e.target.value;
+                    this.render();
+                });
+                document.getElementById('spacing').addEventListener('input', (e) => {
+                    this.spacing = parseInt(e.target.value);
+                    this.calculateLayout();
+                    this.render();
+                });
+                document.getElementById('canvas-width').addEventListener('input', (e) => {
+                    this.canvasWidth = parseInt(e.target.value);
+                    this.calculateLayout();
+                    this.render();
+                });
+
+                document.getElementById('export-format').addEventListener('change', (e) => {
+                    const qualityGroup = document.getElementById('quality-group');
+                    qualityGroup.style.display = e.target.value === 'jpeg' ? 'block' : 'none';
+                });
+
+                this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                this.canvas.addEventListener('mouseup', () => this.handleMouseUp());
+                this.canvas.addEventListener('mouseleave', () => this.handleMouseUp());
+                this.canvas.addEventListener('wheel', (e) => this.handleWheel(e));
+            }
+
+            async handleImageUpload(e) {
+                const files = Array.from(e.target.files);
+                if (files.length < 2) {
+                    alert('Please select at least 2 images');
+                    return;
+                }
+
+                this.images = files;
+                this.loadedImages = [];
+                this.imageTransforms = [];
+
+                const loadPromises = files.map(file => {
+                    return new Promise((resolve) => {
+                        const img = new Image();
+                        img.onload = () => resolve(img);
+                        img.src = URL.createObjectURL(file);
+                    });
+                });
+
+                this.loadedImages = await Promise.all(loadPromises);
+                document.getElementById('generate-btn').disabled = false;
+            }
+
+            calculateGridLayout(count) {
+                // Calculate optimal grid layout
+                const cols = Math.ceil(Math.sqrt(count));
+                const rows = Math.ceil(count / cols);
+                return { cols, rows };
+            }
+
+            calculateAverageAspectRatio() {
+                if (this.loadedImages.length === 0) return 1;
+                
+                const aspectRatios = this.loadedImages.map(img => img.width / img.height);
+                const avgAspectRatio = aspectRatios.reduce((a, b) => a + b, 0) / aspectRatios.length;
+                return avgAspectRatio;
+            }
+
+            calculateLayout() {
+                this.gridLayout = this.calculateGridLayout(this.loadedImages.length);
+                const avgAspectRatio = this.calculateAverageAspectRatio();
+
+                // Calculate frame size based on canvas width and grid
+                const totalSpacingWidth = this.spacing * (this.gridLayout.cols + 1);
+                const availableWidth = this.canvasWidth - totalSpacingWidth;
+                const frameWidth = availableWidth / this.gridLayout.cols;
+                const frameHeight = frameWidth / avgAspectRatio;
+
+                this.frameSize = { width: frameWidth, height: frameHeight };
+
+                // Calculate canvas height
+                const totalSpacingHeight = this.spacing * (this.gridLayout.rows + 1);
+                const canvasHeight = (frameHeight * this.gridLayout.rows) + totalSpacingHeight;
+
+                this.canvas.width = this.canvasWidth;
+                this.canvas.height = canvasHeight;
+            }
+
+            generateMontage() {
+                this.calculateLayout();
+                
+                // Initialize transforms for each image
+                this.imageTransforms = this.loadedImages.map(img => {
+                    const scale = Math.min(
+                        this.frameSize.width / img.width,
+                        this.frameSize.height / img.height
+                    );
+                    return {
+                        scale: scale,
+                        offsetX: 0,
+                        offsetY: 0
+                    };
+                });
+
+                this.render();
+                this.createImageControls();
+                document.getElementById('export-btn').disabled = false;
+                document.getElementById('image-controls-section').style.display = 'block';
+            }
+
+            render() {
+                this.ctx.fillStyle = this.backgroundColor;
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                this.loadedImages.forEach((img, index) => {
+                    const col = index % this.gridLayout.cols;
+                    const row = Math.floor(index / this.gridLayout.cols);
+
+                    const frameX = this.spacing + (col * (this.frameSize.width + this.spacing));
+                    const frameY = this.spacing + (row * (this.frameSize.height + this.spacing));
+
+                    const transform = this.imageTransforms[index];
+                    
+                    this.ctx.save();
+                    
+                    // Create clipping region for the frame
+                    this.ctx.beginPath();
+                    this.ctx.rect(frameX, frameY, this.frameSize.width, this.frameSize.height);
+                    this.ctx.clip();
+
+                    // Calculate image dimensions and position
+                    const scaledWidth = img.width * transform.scale;
+                    const scaledHeight = img.height * transform.scale;
+                    
+                    const imgX = frameX + (this.frameSize.width - scaledWidth) / 2 + transform.offsetX;
+                    const imgY = frameY + (this.frameSize.height - scaledHeight) / 2 + transform.offsetY;
+
+                    this.ctx.drawImage(img, imgX, imgY, scaledWidth, scaledHeight);
+                    
+                    this.ctx.restore();
+                });
+            }
+
+            createImageControls() {
+                const container = document.getElementById('image-controls');
+                container.innerHTML = '';
+
+                this.loadedImages.forEach((img, index) => {
+                    const controlDiv = document.createElement('div');
+                    controlDiv.className = 'image-control-item';
+                    
+                    const transform = this.imageTransforms[index];
+                    
+                    controlDiv.innerHTML = `
+                        <h3>Image ${index + 1}</h3>
+                        <div class="slider-group">
+                            <label>
+                                <span>Scale:</span>
+                                <span id="scale-value-${index}">${(transform.scale * 100).toFixed(0)}%</span>
+                            </label>
+                            <input type="range" id="scale-${index}" 
+                                   min="10" max="300" value="${transform.scale * 100}" step="1">
+                        </div>
+                        <div class="slider-group">
+                            <label>
+                                <span>Horizontal Position:</span>
+                                <span id="x-value-${index}">${transform.offsetX}px</span>
+                            </label>
+                            <input type="range" id="offset-x-${index}" 
+                                   min="-${this.frameSize.width}" max="${this.frameSize.width}" 
+                                   value="${transform.offsetX}" step="1">
+                        </div>
+                        <div class="slider-group">
+                            <label>
+                                <span>Vertical Position:</span>
+                                <span id="y-value-${index}">${transform.offsetY}px</span>
+                            </label>
+                            <input type="range" id="offset-y-${index}" 
+                                   min="-${this.frameSize.height}" max="${this.frameSize.height}" 
+                                   value="${transform.offsetY}" step="1">
+                        </div>
+                    `;
+
+                    container.appendChild(controlDiv);
+
+                    // Add event listeners
+                    document.getElementById(`scale-${index}`).addEventListener('input', (e) => {
+                        this.imageTransforms[index].scale = e.target.value / 100;
+                        document.getElementById(`scale-value-${index}`).textContent = `${e.target.value}%`;
+                        this.render();
+                    });
+
+                    document.getElementById(`offset-x-${index}`).addEventListener('input', (e) => {
+                        this.imageTransforms[index].offsetX = parseInt(e.target.value);
+                        document.getElementById(`x-value-${index}`).textContent = `${e.target.value}px`;
+                        this.render();
+                    });
+
+                    document.getElementById(`offset-y-${index}`).addEventListener('input', (e) => {
+                        this.imageTransforms[index].offsetY = parseInt(e.target.value);
+                        document.getElementById(`y-value-${index}`).textContent = `${e.target.value}px`;
+                        this.render();
+                    });
+                });
+            }
+
+            getImageIndexAtPoint(x, y) {
+                const rect = this.canvas.getBoundingClientRect();
+                const canvasX = x - rect.left;
+                const canvasY = y - rect.top;
+
+                for (let i = 0; i < this.loadedImages.length; i++) {
+                    const col = i % this.gridLayout.cols;
+                    const row = Math.floor(i / this.gridLayout.cols);
+
+                    const frameX = this.spacing + (col * (this.frameSize.width + this.spacing));
+                    const frameY = this.spacing + (row * (this.frameSize.height + this.spacing));
+
+                    if (canvasX >= frameX && canvasX <= frameX + this.frameSize.width &&
+                        canvasY >= frameY && canvasY <= frameY + this.frameSize.height) {
+                        return i;
+                    }
+                }
+                return null;
+            }
+
+            handleMouseDown(e) {
+                const imageIndex = this.getImageIndexAtPoint(e.clientX, e.clientY);
+                if (imageIndex !== null) {
+                    this.selectedImage = imageIndex;
+                    this.isDragging = true;
+                    this.dragStart = { x: e.clientX, y: e.clientY };
+                    this.canvas.style.cursor = 'grabbing';
+                }
+            }
+
+            handleMouseMove(e) {
+                if (!this.isDragging || this.selectedImage === null) {
+                    const imageIndex = this.getImageIndexAtPoint(e.clientX, e.clientY);
+                    this.canvas.style.cursor = imageIndex !== null ? 'grab' : 'move';
+                    return;
+                }
+
+                const deltaX = e.clientX - this.dragStart.x;
+                const deltaY = e.clientY - this.dragStart.y;
+
+                this.imageTransforms[this.selectedImage].offsetX += deltaX;
+                this.imageTransforms[this.selectedImage].offsetY += deltaY;
+
+                // Update the corresponding sliders
+                document.getElementById(`offset-x-${this.selectedImage}`).value = 
+                    this.imageTransforms[this.selectedImage].offsetX;
+                document.getElementById(`offset-y-${this.selectedImage}`).value = 
+                    this.imageTransforms[this.selectedImage].offsetY;
+                document.getElementById(`x-value-${this.selectedImage}`).textContent = 
+                    `${this.imageTransforms[this.selectedImage].offsetX}px`;
+                document.getElementById(`y-value-${this.selectedImage}`).textContent = 
+                    `${this.imageTransforms[this.selectedImage].offsetY}px`;
+
+                this.dragStart = { x: e.clientX, y: e.clientY };
+                this.render();
+            }
+
+            handleMouseUp() {
+                this.isDragging = false;
+                this.selectedImage = null;
+                this.canvas.style.cursor = 'move';
+            }
+
+            handleWheel(e) {
+                e.preventDefault();
+                const imageIndex = this.getImageIndexAtPoint(e.clientX, e.clientY);
+                
+                if (imageIndex !== null) {
+                    const delta = e.deltaY > 0 ? -5 : 5;
+                    const currentScale = this.imageTransforms[imageIndex].scale * 100;
+                    const newScale = Math.max(10, Math.min(300, currentScale + delta));
+                    
+                    this.imageTransforms[imageIndex].scale = newScale / 100;
+                    
+                    document.getElementById(`scale-${imageIndex}`).value = newScale;
+                    document.getElementById(`scale-value-${imageIndex}`).textContent = `${newScale.toFixed(0)}%`;
+                    
+                    this.render();
+                }
+            }
+
+            exportMontage() {
+                const format = document.getElementById('export-format').value;
+                const quality = parseInt(document.getElementById('jpeg-quality').value) / 100;
+
+                let dataURL;
+                if (format === 'png') {
+                    dataURL = this.canvas.toDataURL('image/png');
+                } else {
+                    dataURL = this.canvas.toDataURL('image/jpeg', quality);
+                }
+
+                const link = document.createElement('a');
+                link.download = `montage.${format}`;
+                link.href = dataURL;
+                link.click();
+            }
+        }
+
+        // Initialize the app
+        const app = new ImageMontage();
+    </script>
+</body>
+</html>

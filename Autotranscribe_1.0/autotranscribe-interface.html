@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoTranscribe - Batch Audio Transcription</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: #2a2a2a;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #ff8c00;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .subtitle {
+            color: #999;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+
+        .section {
+            background-color: #333;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            border-left: 4px solid #ff8c00;
+        }
+
+        .section-title {
+            color: #ff8c00;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .upload-area {
+            background-color: #1a1a1a;
+            border: 2px dashed #555;
+            padding: 40px;
+            border-radius: 6px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 15px;
+        }
+
+        .upload-area:hover {
+            border-color: #ff8c00;
+            background-color: #252525;
+        }
+
+        .upload-area.dragover {
+            border-color: #ff8c00;
+            background-color: #252525;
+            border-style: solid;
+        }
+
+        .upload-icon {
+            font-size: 3em;
+            color: #ff8c00;
+            margin-bottom: 10px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-list {
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: #1a1a1a;
+            border-radius: 4px;
+            padding: 10px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            margin-bottom: 8px;
+            background-color: #2a2a2a;
+            border-radius: 4px;
+            border-left: 3px solid #555;
+        }
+
+        .file-item.processing {
+            border-left-color: #ff8c00;
+        }
+
+        .file-item.completed {
+            border-left-color: #4caf50;
+        }
+
+        .file-item.error {
+            border-left-color: #f44336;
+        }
+
+        .file-info {
+            flex-grow: 1;
+        }
+
+        .file-name {
+            color: #e0e0e0;
+            font-weight: 500;
+        }
+
+        .file-status {
+            color: #999;
+            font-size: 0.85em;
+            margin-top: 3px;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            background-color: #ff8c00;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.95em;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+
+        .btn:hover {
+            background-color: #e67e00;
+        }
+
+        .btn:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 0.85em;
+        }
+
+        .btn-danger {
+            background-color: #f44336;
+        }
+
+        .btn-danger:hover {
+            background-color: #d32f2f;
+        }
+
+        .btn-success {
+            background-color: #4caf50;
+        }
+
+        .btn-success:hover {
+            background-color: #45a049;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            color: #ccc;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        select, input[type="text"] {
+            background-color: #1a1a1a;
+            border: 1px solid #555;
+            color: #e0e0e0;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 0.95em;
+            font-family: inherit;
+        }
+
+        select:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: #ff8c00;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-container.visible {
+            display: block;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background-color: #1a1a1a;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff8c00, #ffb347);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: 600;
+            font-size: 0.85em;
+        }
+
+        .progress-text {
+            color: #999;
+            font-size: 0.9em;
+            text-align: center;
+        }
+
+        .help-text {
+            color: #888;
+            font-size: 0.85em;
+            font-style: italic;
+            margin-top: 5px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 0.75em;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .status-badge.queued {
+            background-color: #555;
+            color: #fff;
+        }
+
+        .status-badge.processing {
+            background-color: #ff8c00;
+            color: #fff;
+        }
+
+        .status-badge.completed {
+            background-color: #4caf50;
+            color: #fff;
+        }
+
+        .status-badge.error {
+            background-color: #f44336;
+            color: #fff;
+        }
+
+        .download-link {
+            color: #ff8c00;
+            text-decoration: none;
+            font-size: 0.85em;
+        }
+
+        .download-link:hover {
+            text-decoration: underline;
+        }
+
+        .low-confidence {
+            background-color: #ff8c00;
+            padding: 2px 4px;
+            border-radius: 2px;
+            cursor: help;
+        }
+
+        .medium-confidence {
+            background-color: #666;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
+
+        .section {
+            background-color: #333;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            border-left: 4px solid #ff8c00;
+        }
+
+        .section.compact {
+            margin-bottom: 0;
+        }
+
+        .section.full-width {
+            margin-bottom: 20px;
+        }
+
+        /* Simple row-based layout */
+        .row-two-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .row-two-columns .section {
+            margin-bottom: 0;
+        }
+
+        @media (max-width: 1200px) {
+            .row-two-columns {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        #previewSection {
+            min-height: 600px;
+        }
+
+        #previewSection .file-list,
+        #transcriptPreview,
+        #transcriptEditor {
+            max-height: 500px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AutoTranscribe</h1>
+        <p class="subtitle">Batch Audio & Video Transcription powered by OpenAI Whisper</p>
+
+        <!-- ROW 1: Two columns -->
+        <div class="row-two-columns">
+            <!-- Upload Section -->
+            <div class="section">
+                <div class="section-title">1. Upload Files</div>
+                <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                    <div class="upload-icon">📁</div>
+                    <div>
+                        <strong>Click to select files</strong> or drag and drop here
+                    </div>
+                    <div class="help-text">Supports: MP3, MP4, WAV, M4A, MOV, AVI, and more</div>
+                </div>
+                <input type="file" id="fileInput" multiple accept="audio/*,video/*">
+                
+                <div id="fileListContainer" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <strong>Files (<span id="fileCount">0</span>)</strong>
+                        <button class="btn btn-small btn-danger" onclick="clearAllFiles()">Clear All</button>
+                    </div>
+                    <div class="file-list" id="fileList"></div>
+                </div>
+            </div>
+
+            <!-- Settings Section -->
+            <div class="section">
+                <div class="section-title">2. Transcription Settings</div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="modelSelect">Whisper Model</label>
+                    <select id="modelSelect">
+                        <option value="tiny">Tiny - Fastest, least accurate</option>
+                        <option value="base" selected>Base - Good balance (recommended)</option>
+                        <option value="small">Small - Better accuracy, slower</option>
+                        <option value="medium">Medium - High accuracy, quite slow</option>
+                        <option value="large">Large - Best accuracy, very slow</option>
+                    </select>
+                    <div class="help-text">Larger models = better accuracy but slower processing</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="languageSelect">Language</label>
+                    <select id="languageSelect">
+                        <option value="auto">Auto-detect</option>
+                        <option value="en" selected>English</option>
+                        <option value="en-AU">Australian English (recommended for Aussie voices)</option>
+                        <option value="es">Spanish</option>
+                        <option value="fr">French</option>
+                        <option value="de">German</option>
+                        <option value="it">Italian</option>
+                        <option value="pt">Portuguese</option>
+                        <option value="nl">Dutch</option>
+                        <option value="ja">Japanese</option>
+                        <option value="ko">Korean</option>
+                        <option value="zh">Chinese</option>
+                    </select>
+                    <div class="help-text">Australian English improves accuracy for Aussie accents</div>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="customVocab">Custom Vocabulary (optional)</label>
+                    <input type="text" id="customVocab" placeholder="e.g., Mackay, QRIDA, Bundaberg, Woolworths">
+                    <div class="help-text">Comma-separated list of proper nouns, place names, brands</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="initialPrompt">Initial Prompt (optional)</label>
+                    <input type="text" id="initialPrompt" placeholder="e.g., Australian business discussion about agriculture">
+                    <div class="help-text">Context to help the model understand the audio content</div>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Output Options</label>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="includeTxt" checked>
+                        <label for="includeTxt" style="margin: 0;">Plain Text (.txt)</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="includeDocx" checked>
+                        <label for="includeDocx" style="margin: 0;">Word Document (.docx)</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="includeSrt">
+                        <label for="includeSrt" style="margin: 0;">Subtitles (.srt)</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Additional Options</label>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="includeTimestamps">
+                        <label for="includeTimestamps" style="margin: 0;">Include timestamps in text</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="translateToEnglish">
+                        <label for="translateToEnglish" style="margin: 0;">Translate to English</label>
+                    </div>
+                </div>
+            </div>
+            </div>
+        </div>
+        <!-- END ROW 1 -->
+
+        <!-- ROW 2: Process (full width) -->
+        <div class="section">
+            <div class="section-title">3. Process</div>
+            <div class="button-group">
+                <button class="btn" id="startBtn" onclick="startProcessing()" disabled>
+                    Start Transcription
+                </button>
+                <button class="btn btn-danger" id="stopBtn" onclick="stopProcessing()" disabled style="display: none;">
+                    Stop Processing
+                </button>
+            </div>
+
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill">0%</div>
+                </div>
+                <div class="progress-text" id="progressText">Processing...</div>
+            </div>
+        </div>
+        <!-- END ROW 2 -->
+
+        <!-- ROW 3: Transcript Preview (full width) -->
+        <div class="section" id="previewSection" style="display: none;">
+            <div class="section-title">Transcript Preview & Editor</div>
+            <div style="background-color: #1a1a1a; padding: 15px; border-radius: 4px; margin-bottom: 10px;">
+                <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                    <div style="color: #ccc; font-size: 0.9em;">
+                        <strong id="previewFilename"></strong>
+                    </div>
+                    <div style="flex-grow: 1;"></div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="background-color: #ff8c00; padding: 4px 8px; border-radius: 3px; font-size: 0.8em;">Low Confidence</span>
+                        <span style="color: #888; font-size: 0.85em;">= Review needed</span>
+                    </div>
+                </div>
+                
+                <!-- Two-pane layout -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <!-- Original (read-only) -->
+                    <div>
+                        <div style="color: #ff8c00; font-weight: 600; margin-bottom: 8px; font-size: 0.9em;">
+                            ORIGINAL (Read-Only)
+                        </div>
+                        <div id="transcriptPreview" style="background-color: #2a2a2a; padding: 15px; border-radius: 4px; height: 500px; overflow-y: auto; line-height: 1.8; font-size: 0.95em; white-space: pre-wrap; border: 2px solid #444;"></div>
+                    </div>
+                    
+                    <!-- Editable version -->
+                    <div>
+                        <div style="color: #4caf50; font-weight: 600; margin-bottom: 8px; font-size: 0.9em;">
+                            EDITABLE (Make corrections here)
+                        </div>
+                        <textarea id="transcriptEditor" style="background-color: #2a2a2a; padding: 15px; border-radius: 4px; width: 100%; height: 500px; overflow-y: auto; line-height: 1.8; font-size: 0.95em; white-space: pre-wrap; border: 2px solid #4caf50; color: #e0e0e0; font-family: inherit; resize: vertical;"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-small" onclick="copyEditedTranscript()">Copy Edited Text</button>
+                <button class="btn btn-small btn-success" onclick="saveEditedTranscript()">Save Edited Version</button>
+                <button class="btn btn-small" onclick="resetEditor()">Reset Edits</button>
+                <button class="btn btn-small" onclick="showNextPreview()">Next File</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let files = [];
+        let processing = false;
+        let currentIndex = 0;
+
+        // File upload handling
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const fileListContainer = document.getElementById('fileListContainer');
+        const fileCount = document.getElementById('fileCount');
+        const startBtn = document.getElementById('startBtn');
+
+        fileInput.addEventListener('change', handleFileSelect);
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const droppedFiles = Array.from(e.dataTransfer.files);
+            addFiles(droppedFiles);
+        });
+
+        function handleFileSelect(e) {
+            const selectedFiles = Array.from(e.target.files);
+            addFiles(selectedFiles);
+        }
+
+        function addFiles(newFiles) {
+            newFiles.forEach(file => {
+                const fileObj = {
+                    file: file,
+                    id: Date.now() + Math.random(),
+                    status: 'queued',
+                    result: null,
+                    error: null
+                };
+                files.push(fileObj);
+            });
+            updateFileList();
+            updateStartButton();
+        }
+
+        function updateFileList() {
+            if (files.length === 0) {
+                fileListContainer.style.display = 'none';
+                return;
+            }
+
+            fileListContainer.style.display = 'block';
+            fileCount.textContent = files.length;
+
+            fileList.innerHTML = files.map(fileObj => `
+                <div class="file-item ${fileObj.status}" id="file-${fileObj.id}">
+                    <div class="file-info">
+                        <div class="file-name">
+                            ${fileObj.file.name}
+                            <span class="status-badge ${fileObj.status}">${fileObj.status.toUpperCase()}</span>
+                        </div>
+                        <div class="file-status" id="status-${fileObj.id}">
+                            ${getStatusText(fileObj)}
+                        </div>
+                    </div>
+                    <div class="file-actions">
+                        ${fileObj.status === 'completed' ? getDownloadButtons(fileObj) : ''}
+                        ${fileObj.status === 'queued' ? `<button class="btn btn-small btn-danger" onclick="removeFile('${fileObj.id}')">Remove</button>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getStatusText(fileObj) {
+            if (fileObj.status === 'queued') return 'Waiting...';
+            if (fileObj.status === 'processing') return 'Transcribing...';
+            if (fileObj.status === 'completed') return 'Complete! Click to download';
+            if (fileObj.status === 'error') return `Error: ${fileObj.error}`;
+            return '';
+        }
+
+        function getDownloadButtons(fileObj) {
+            if (!fileObj.result) return '';
+            
+            let buttons = '';
+            if (fileObj.result.txt_path) {
+                buttons += `<button class="btn btn-small btn-success" onclick="downloadFile('${fileObj.result.txt_path}', 'txt')">TXT</button>`;
+            }
+            if (fileObj.result.docx_path) {
+                buttons += `<button class="btn btn-small btn-success" onclick="downloadFile('${fileObj.result.docx_path}', 'docx')">DOCX</button>`;
+            }
+            if (fileObj.result.srt_path) {
+                buttons += `<button class="btn btn-small btn-success" onclick="downloadFile('${fileObj.result.srt_path}', 'srt')">SRT</button>`;
+            }
+            return buttons;
+        }
+
+        function removeFile(fileId) {
+            files = files.filter(f => f.id != fileId);
+            updateFileList();
+            updateStartButton();
+        }
+
+        function clearAllFiles() {
+            if (processing) {
+                alert('Cannot clear files while processing');
+                return;
+            }
+            files = [];
+            updateFileList();
+            updateStartButton();
+        }
+
+        function updateStartButton() {
+            startBtn.disabled = files.length === 0 || processing;
+        }
+
+        async function startProcessing() {
+            if (files.length === 0) return;
+
+            processing = true;
+            currentIndex = 0;
+            startBtn.disabled = true;
+            document.getElementById('stopBtn').style.display = 'inline-block';
+            document.getElementById('progressContainer').classList.add('visible');
+
+            const settings = {
+                model: document.getElementById('modelSelect').value,
+                language: document.getElementById('languageSelect').value,
+                customVocab: document.getElementById('customVocab').value,
+                initialPrompt: document.getElementById('initialPrompt').value,
+                includeTxt: document.getElementById('includeTxt').checked,
+                includeDocx: document.getElementById('includeDocx').checked,
+                includeSrt: document.getElementById('includeSrt').checked,
+                includeTimestamps: document.getElementById('includeTimestamps').checked,
+                translateToEnglish: document.getElementById('translateToEnglish').checked
+            };
+
+            for (let i = 0; i < files.length && processing; i++) {
+                currentIndex = i;
+                await processFile(files[i], settings);
+                updateProgress();
+            }
+
+            processing = false;
+            startBtn.disabled = false;
+            document.getElementById('stopBtn').style.display = 'none';
+            updateProgress();
+        }
+
+        function stopProcessing() {
+            processing = false;
+            document.getElementById('stopBtn').disabled = true;
+        }
+
+        async function processFile(fileObj, settings) {
+            fileObj.status = 'processing';
+            updateFileList();
+            updateProgress();
+
+            const formData = new FormData();
+            formData.append('audio', fileObj.file);
+            formData.append('model', settings.model);
+            formData.append('language', settings.language);
+            formData.append('custom_vocab', settings.customVocab);
+            formData.append('initial_prompt', settings.initialPrompt);
+            formData.append('include_txt', settings.includeTxt);
+            formData.append('include_docx', settings.includeDocx);
+            formData.append('include_srt', settings.includeSrt);
+            formData.append('include_timestamps', settings.includeTimestamps);
+            formData.append('translate', settings.translateToEnglish);
+
+            try {
+                const response = await fetch('http://localhost:5001/transcribe_batch', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    fileObj.status = 'completed';
+                    fileObj.result = result;
+                    
+                    // Show transcript preview for first completed file
+                    if (!document.getElementById('previewSection').style.display || 
+                        document.getElementById('previewSection').style.display === 'none') {
+                        showTranscriptPreview(fileObj);
+                    }
+                } else {
+                    fileObj.status = 'error';
+                    fileObj.error = result.error;
+                }
+            } catch (error) {
+                fileObj.status = 'error';
+                fileObj.error = error.message;
+            }
+
+            updateFileList();
+            updateProgress();
+        }
+
+        let currentPreviewFile = null;
+        let originalTranscript = '';
+
+        function formatTranscriptWithSentenceBreaks(text) {
+            // Split into sentences (basic - looks for . ! ? followed by space/end)
+            let sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+            
+            // Join with double line breaks
+            return sentences.map(s => s.trim()).join('\n\n');
+        }
+
+        function showTranscriptPreview(fileObj) {
+            if (!fileObj.result || !fileObj.result.words) return;
+            
+            currentPreviewFile = fileObj;
+            const previewSection = document.getElementById('previewSection');
+            const previewFilename = document.getElementById('previewFilename');
+            const transcriptPreview = document.getElementById('transcriptPreview');
+            const transcriptEditor = document.getElementById('transcriptEditor');
+            
+            previewSection.style.display = 'block';
+            previewFilename.textContent = fileObj.file.name;
+            
+            // Build HTML with confidence highlighting for preview pane
+            let html = '';
+            const words = fileObj.result.words;
+            
+            for (let word of words) {
+                const confidence = word.probability || 1.0;
+                
+                if (confidence < 0.5) {
+                    html += `<span class="low-confidence" title="Confidence: ${(confidence * 100).toFixed(0)}%">${word.word}</span>`;
+                } else if (confidence < 0.8) {
+                    html += `<span class="medium-confidence" title="Confidence: ${(confidence * 100).toFixed(0)}%">${word.word}</span>`;
+                } else {
+                    html += word.word;
+                }
+            }
+            
+            transcriptPreview.innerHTML = html || fileObj.result.transcription;
+            
+            // Set plain text in editor with sentence breaks
+            originalTranscript = fileObj.result.transcription;
+            const formattedTranscript = formatTranscriptWithSentenceBreaks(originalTranscript);
+            transcriptEditor.value = formattedTranscript;
+            
+            // Also format the preview pane text for readability
+            // Rebuild with sentence breaks
+            if (words.length > 0) {
+                let formattedHtml = '';
+                let currentSentence = '';
+                
+                for (let word of words) {
+                    const confidence = word.probability || 1.0;
+                    let wordHtml = '';
+                    
+                    if (confidence < 0.5) {
+                        wordHtml = `<span class="low-confidence" title="Confidence: ${(confidence * 100).toFixed(0)}%">${word.word}</span>`;
+                    } else if (confidence < 0.8) {
+                        wordHtml = `<span class="medium-confidence" title="Confidence: ${(confidence * 100).toFixed(0)}%">${word.word}</span>`;
+                    } else {
+                        wordHtml = word.word;
+                    }
+                    
+                    currentSentence += wordHtml;
+                    
+                    // Check if this word ends a sentence
+                    if (word.word.match(/[.!?]$/)) {
+                        formattedHtml += currentSentence.trim() + '<br><br>';
+                        currentSentence = '';
+                    }
+                }
+                
+                // Add any remaining text
+                if (currentSentence.trim()) {
+                    formattedHtml += currentSentence.trim();
+                }
+                
+                transcriptPreview.innerHTML = formattedHtml;
+            }
+            
+            // Scroll preview into view
+            previewSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function showNextPreview() {
+            const completedFiles = files.filter(f => f.status === 'completed' && f.result);
+            if (completedFiles.length === 0) return;
+            
+            const currentFilename = document.getElementById('previewFilename').textContent;
+            let currentIndex = completedFiles.findIndex(f => f.file.name === currentFilename);
+            
+            let nextIndex = (currentIndex + 1) % completedFiles.length;
+            showTranscriptPreview(completedFiles[nextIndex]);
+        }
+
+        function copyEditedTranscript() {
+            const editor = document.getElementById('transcriptEditor');
+            const text = editor.value;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Edited transcript copied to clipboard!');
+            }).catch(err => {
+                alert('Failed to copy: ' + err);
+            });
+        }
+
+        function resetEditor() {
+            if (confirm('Reset all edits to original transcript?')) {
+                const formattedTranscript = formatTranscriptWithSentenceBreaks(originalTranscript);
+                document.getElementById('transcriptEditor').value = formattedTranscript;
+            }
+        }
+
+        async function saveEditedTranscript() {
+            if (!currentPreviewFile) return;
+            
+            const editedText = document.getElementById('transcriptEditor').value;
+            const filename = currentPreviewFile.file.name.replace(/\.[^/.]+$/, '') + '_edited.txt';
+            
+            // Create a blob and download
+            const blob = new Blob([editedText], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            alert(`Saved as ${filename}`);
+        }
+
+        function updateProgress() {
+            const total = files.length;
+            const completed = files.filter(f => f.status === 'completed' || f.status === 'error').length;
+            const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+            document.getElementById('progressFill').style.width = percentage + '%';
+            document.getElementById('progressFill').textContent = percentage + '%';
+            document.getElementById('progressText').textContent = `Processed ${completed} of ${total} files`;
+        }
+
+        async function downloadFile(filePath, format) {
+            try {
+                const response = await fetch(`http://localhost:5001/download?path=${encodeURIComponent(filePath)}`);
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filePath.split('/').pop();
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } catch (error) {
+                alert('Download failed: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoClapper 2.0 - Script & Clapper Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #2a2a2a;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #ff8c00;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .subtitle {
+            color: #999;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+
+        .section {
+            background-color: #333;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            border-left: 4px solid #ff8c00;
+        }
+
+        .section-title {
+            color: #ff8c00;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .form-row.single {
+            grid-template-columns: 1fr;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            color: #ccc;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        textarea {
+            background-color: #1a1a1a;
+            border: 1px solid #555;
+            color: #e0e0e0;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 0.95em;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #ff8c00;
+        }
+
+        input[type="text"]:disabled {
+            background-color: #3a3a3a;
+            color: #888;
+            cursor: not-allowed;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 200px;
+        }
+
+        .file-selector {
+            background-color: #1a1a1a;
+            border: 2px dashed #555;
+            padding: 20px;
+            border-radius: 6px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .file-selector:hover {
+            border-color: #ff8c00;
+            background-color: #252525;
+        }
+
+        .file-selector.selected {
+            border-color: #ff8c00;
+            border-style: solid;
+            background-color: #252525;
+        }
+
+        .file-selector-label {
+            color: #999;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+
+        .file-path {
+            color: #ff8c00;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            word-break: break-all;
+        }
+
+        .browse-btn {
+            background-color: #ff8c00;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+            margin-top: 10px;
+            transition: background-color 0.3s;
+        }
+
+        .browse-btn:hover {
+            background-color: #e67e00;
+        }
+
+        .generate-btn {
+            background-color: #ff8c00;
+            color: #fff;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 600;
+            width: 100%;
+            transition: background-color 0.3s;
+            margin-top: 10px;
+        }
+
+        .generate-btn:hover {
+            background-color: #e67e00;
+        }
+
+        .generate-btn:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+
+        .status-area {
+            background-color: #1a1a1a;
+            border: 1px solid #555;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+            min-height: 100px;
+            display: none;
+        }
+
+        .status-area.visible {
+            display: block;
+        }
+
+        .status-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-icon {
+            font-size: 1.2em;
+        }
+
+        .status-icon.success {
+            color: #4caf50;
+        }
+
+        .status-icon.error {
+            color: #f44336;
+        }
+
+        .status-icon.pending {
+            color: #ff8c00;
+        }
+
+        .status-text {
+            color: #ccc;
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+        }
+
+        .auto-field-note {
+            color: #888;
+            font-size: 0.8em;
+            font-style: italic;
+            margin-top: 3px;
+        }
+
+        .formatting-toolbar {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 8px;
+            padding: 8px;
+            background-color: #1a1a1a;
+            border-radius: 4px;
+            border: 1px solid #555;
+        }
+
+        .format-btn {
+            background-color: #3a3a3a;
+            color: #e0e0e0;
+            border: 1px solid #555;
+            padding: 6px 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: 600;
+            transition: all 0.2s;
+            min-width: 35px;
+        }
+
+        .format-btn:hover {
+            background-color: #ff8c00;
+            border-color: #ff8c00;
+            color: #fff;
+        }
+
+        .format-btn:active {
+            transform: scale(0.95);
+        }
+
+        .format-btn.highlight {
+            background-color: #4a4a00;
+        }
+
+        .format-btn.highlight:hover {
+            background-color: #ffeb3b;
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AutoClapper 2.0</h1>
+        <p class="subtitle">Script & Clapper Document Generator</p>
+        
+        <!-- Server Status Indicator -->
+        <div class="section" id="serverStatus" style="border-left-color: #f44336;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="status-icon pending" id="serverStatusIcon">⋯</span>
+                <span id="serverStatusText">Checking server connection...</span>
+            </div>
+        </div>
+
+        <!-- Output Directory Selection -->
+        <div class="section">
+            <div class="section-title">Output Location</div>
+            <div class="form-row single">
+                <div class="form-group">
+                    <label for="outputDir">Output Directory Path</label>
+                    <input type="text" id="outputDir" placeholder="C:\Output" value="C:\Output">
+                    <div class="auto-field-note">Enter the full path where files should be saved (e.g., C:\Users\YourName\Documents\Scripts)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shared Fields -->
+        <div class="section">
+            <div class="section-title">General Information</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="keyNo">Key No</label>
+                    <input type="text" id="keyNo" placeholder="Enter key number">
+                </div>
+                <div class="form-group">
+                    <label for="client">Client</label>
+                    <input type="text" id="client" placeholder="Enter client name">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="product">Product</label>
+                    <input type="text" id="product" placeholder="Enter product name">
+                </div>
+                <div class="form-group">
+                    <label for="duration">Duration</label>
+                    <input type="text" id="duration" placeholder="e.g., 30s, 60s">
+                </div>
+            </div>
+        </div>
+
+        <!-- Script-Only Fields -->
+        <div class="section">
+            <div class="section-title">Script Details</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="contact">Contact</label>
+                    <input type="text" id="contact" placeholder="Enter contact name">
+                </div>
+                <div class="form-group">
+                    <label for="phNo">Ph No</label>
+                    <input type="text" id="phNo" placeholder="Enter phone number">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="date">Date</label>
+                    <input type="text" id="date" disabled>
+                    <div class="auto-field-note">Auto-filled (DD/MM/YY)</div>
+                </div>
+                <div class="form-group">
+                    <label for="onAir">On Air</label>
+                    <input type="text" id="onAir" placeholder="Enter on-air date">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="prodCost">Prod $</label>
+                    <input type="text" id="prodCost" placeholder="Enter production cost">
+                </div>
+                <div class="form-group">
+                    <label for="notes">Notes</label>
+                    <input type="text" id="notes" placeholder="Enter any notes">
+                </div>
+            </div>
+        </div>
+
+        <!-- Clapper-Only Fields -->
+        <div class="section">
+            <div class="section-title">Clapper Details</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="agency">Agency</label>
+                    <input type="text" id="agency" placeholder="Enter agency name">
+                </div>
+                <div class="form-group">
+                    <label for="format">Format</label>
+                    <input type="text" id="format" value="16:9" disabled>
+                    <div class="auto-field-note">Auto-filled (16:9)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Script Content -->
+        <div class="section">
+            <div class="section-title">Script Content</div>
+            <div class="form-row single">
+                <div class="form-group">
+                    <label for="video">Video / Vision</label>
+                    <div class="formatting-toolbar">
+                        <button type="button" class="format-btn" onclick="applyFormat('video', '**', '**')" title="Bold">
+                            <strong>B</strong>
+                        </button>
+                        <button type="button" class="format-btn" onclick="applyFormat('video', '*', '*')" title="Italic">
+                            <em>I</em>
+                        </button>
+                        <button type="button" class="format-btn" onclick="applyFormat('video', '__', '__')" title="Underline">
+                            <u>U</u>
+                        </button>
+                        <button type="button" class="format-btn highlight" onclick="applyFormat('video', '///', '///')" title="Highlight Yellow">
+                            H
+                        </button>
+                    </div>
+                    <textarea id="video" placeholder="Describe the visual elements of the script..."></textarea>
+                </div>
+            </div>
+            <div class="form-row single">
+                <div class="form-group">
+                    <label for="audio">Audio</label>
+                    <div class="formatting-toolbar">
+                        <button type="button" class="format-btn" onclick="applyFormat('audio', '**', '**')" title="Bold">
+                            <strong>B</strong>
+                        </button>
+                        <button type="button" class="format-btn" onclick="applyFormat('audio', '*', '*')" title="Italic">
+                            <em>I</em>
+                        </button>
+                        <button type="button" class="format-btn" onclick="applyFormat('audio', '__', '__')" title="Underline">
+                            <u>U</u>
+                        </button>
+                        <button type="button" class="format-btn highlight" onclick="applyFormat('audio', '///', '///')" title="Highlight Yellow">
+                            H
+                        </button>
+                        <div style="flex-grow: 1;"></div>
+                        <input type="file" id="audioFile" accept="audio/*,video/*" style="display: none;" onchange="handleAudioFileSelected()">
+                        <button type="button" class="browse-btn" onclick="document.getElementById('audioFile').click()" title="Upload audio/video file for transcription" style="margin: 0; padding: 6px 12px; font-size: 0.85em;">
+                            Attempt Auto Transcription
+                        </button>
+                    </div>
+                    <textarea id="audio" placeholder="Describe the audio elements of the script..."></textarea>
+                    <div id="transcriptionStatus" style="display: none; margin-top: 8px; padding: 8px; background-color: #1a1a1a; border-radius: 4px; font-size: 0.85em;">
+                        <span id="transcriptionStatusText"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Generate Button -->
+        <button class="generate-btn" onclick="generateDocuments()" id="generateBtn">
+            Create and Save Documents
+        </button>
+
+        <!-- Status Area -->
+        <div class="status-area" id="statusArea">
+            <!-- Status messages will be added here dynamically -->
+        </div>
+    </div>
+
+    <script>
+        // Auto-fill the date field on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            const today = new Date();
+            const day = String(today.getDate()).padStart(2, '0');
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const year = String(today.getFullYear()).slice(-2);
+            document.getElementById('date').value = `${day}/${month}/${year}`;
+            
+            // Check server connection
+            checkServerConnection();
+        });
+
+        async function checkServerConnection() {
+            const statusSection = document.getElementById('serverStatus');
+            const statusIcon = document.getElementById('serverStatusIcon');
+            const statusText = document.getElementById('serverStatusText');
+            const generateBtn = document.getElementById('generateBtn');
+            
+            try {
+                const response = await fetch('http://localhost:5000/health');
+                const data = await response.json();
+                
+                if (data.script_template_exists && data.clapper_template_exists) {
+                    statusSection.style.borderLeftColor = '#4caf50';
+                    statusIcon.className = 'status-icon success';
+                    statusIcon.textContent = '✓';
+                    statusText.textContent = 'Server connected • Templates found';
+                    generateBtn.disabled = false;
+                } else {
+                    statusSection.style.borderLeftColor = '#ff8c00';
+                    statusIcon.className = 'status-icon pending';
+                    statusIcon.textContent = '!';
+                    statusText.textContent = 'Server connected • WARNING: Template files missing from templates folder';
+                    generateBtn.disabled = false;
+                }
+            } catch (error) {
+                statusSection.style.borderLeftColor = '#f44336';
+                statusIcon.className = 'status-icon error';
+                statusIcon.textContent = '✗';
+                statusText.innerHTML = 'Server not connected • <strong>Please run start_autoclapper.bat</strong>';
+                generateBtn.disabled = true;
+            }
+        }
+
+        function applyFormat(textareaId, startMarker, endMarker) {
+            const textarea = document.getElementById(textareaId);
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const selectedText = textarea.value.substring(start, end);
+            
+            // If no text is selected, just insert the markers at cursor position
+            if (start === end) {
+                const beforeCursor = textarea.value.substring(0, start);
+                const afterCursor = textarea.value.substring(start);
+                textarea.value = beforeCursor + startMarker + endMarker + afterCursor;
+                // Place cursor between markers
+                textarea.selectionStart = textarea.selectionEnd = start + startMarker.length;
+            } else {
+                // Wrap selected text with markers
+                const beforeSelection = textarea.value.substring(0, start);
+                const afterSelection = textarea.value.substring(end);
+                textarea.value = beforeSelection + startMarker + selectedText + endMarker + afterSelection;
+                // Select the formatted text (including markers)
+                textarea.selectionStart = start;
+                textarea.selectionEnd = end + startMarker.length + endMarker.length;
+            }
+            
+            // Keep focus on the textarea
+            textarea.focus();
+        }
+
+        async function handleAudioFileSelected() {
+            const fileInput = document.getElementById('audioFile');
+            const file = fileInput.files[0];
+            
+            if (!file) return;
+            
+            const statusDiv = document.getElementById('transcriptionStatus');
+            const statusText = document.getElementById('transcriptionStatusText');
+            
+            // Show status
+            statusDiv.style.display = 'block';
+            statusText.innerHTML = '🎵 Uploading and transcribing audio... This may take 30-60 seconds.';
+            statusText.style.color = '#ff8c00';
+            
+            try {
+                // Create FormData to send file
+                const formData = new FormData();
+                formData.append('audio', file);
+                
+                // Send to backend for transcription
+                const response = await fetch('http://localhost:5000/transcribe', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Populate audio field with transcription
+                    document.getElementById('audio').value = result.transcription;
+                    statusText.innerHTML = '✓ Transcription complete! You can now edit the text above.';
+                    statusText.style.color = '#4caf50';
+                } else {
+                    statusText.innerHTML = `✗ Transcription failed: ${result.error}`;
+                    statusText.style.color = '#f44336';
+                }
+            } catch (error) {
+                statusText.innerHTML = '✗ Could not connect to transcription service. Make sure the server is running.';
+                statusText.style.color = '#f44336';
+            }
+            
+            // Clear file input so the same file can be selected again if needed
+            fileInput.value = '';
+        }
+
+
+
+        function addStatusMessage(message, type = 'pending') {
+            const statusArea = document.getElementById('statusArea');
+            statusArea.classList.add('visible');
+            
+            const statusItem = document.createElement('div');
+            statusItem.className = 'status-item';
+            
+            const icon = document.createElement('span');
+            icon.className = `status-icon ${type}`;
+            icon.textContent = type === 'success' ? '✓' : type === 'error' ? '✗' : '⋯';
+            
+            const text = document.createElement('span');
+            text.className = 'status-text';
+            text.textContent = message;
+            
+            statusItem.appendChild(icon);
+            statusItem.appendChild(text);
+            statusArea.appendChild(statusItem);
+            
+            return statusItem;
+        }
+
+        function clearStatus() {
+            const statusArea = document.getElementById('statusArea');
+            statusArea.innerHTML = '';
+        }
+
+        async function generateDocuments() {
+            // Clear previous status
+            clearStatus();
+
+            // Get output directory from input field
+            const outputDirectory = document.getElementById('outputDir').value.trim();
+
+            // Validate output directory
+            if (!outputDirectory) {
+                addStatusMessage('Please enter an output directory', 'error');
+                return;
+            }
+
+            // Disable button during processing
+            const btn = document.getElementById('generateBtn');
+            btn.disabled = true;
+            btn.textContent = 'Generating...';
+
+            // Collect form data
+            const formData = {
+                // Shared fields
+                keyNo: document.getElementById('keyNo').value,
+                client: document.getElementById('client').value,
+                product: document.getElementById('product').value,
+                duration: document.getElementById('duration').value,
+                
+                // Script-only fields
+                contact: document.getElementById('contact').value,
+                phNo: document.getElementById('phNo').value,
+                date: document.getElementById('date').value,
+                onAir: document.getElementById('onAir').value,
+                prodCost: document.getElementById('prodCost').value,
+                notes: document.getElementById('notes').value,
+                
+                // Clapper-only fields
+                agency: document.getElementById('agency').value,
+                format: document.getElementById('format').value,
+                
+                // Script content
+                video: document.getElementById('video').value,
+                audio: document.getElementById('audio').value,
+                
+                // Output path
+                outputDirectory: outputDirectory
+            };
+
+            // Show status messages
+            addStatusMessage('Locating template files...', 'pending');
+            
+            try {
+                // Send to Python backend
+                const response = await fetch('http://localhost:5000/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json();
+
+                // Clear pending messages and show results
+                clearStatus();
+
+                if (result.success) {
+                    addStatusMessage('Template files located successfully', 'success');
+                    addStatusMessage(`Script document saved: ${result.scriptPath}`, 'success');
+                    addStatusMessage(`Clapper image saved: ${result.clapperPath}`, 'success');
+                    addStatusMessage('All documents generated successfully!', 'success');
+                } else {
+                    addStatusMessage(`Error: ${result.error}`, 'error');
+                }
+
+            } catch (error) {
+                clearStatus();
+                addStatusMessage('Could not connect to backend. Make sure the Python server is running.', 'error');
+                addStatusMessage(`Error details: ${error.message}`, 'error');
+            }
+
+            // Re-enable button
+            btn.disabled = false;
+            btn.textContent = 'Create and Save Documents';
+        }
+    </script>
+</body>
+</html>
